@@ -6,27 +6,6 @@
 # * Fijate si podes imprimir el espacio de Q a medida que avanza en el training
 # 
 
-# In[1]:
-
-
-get_ipython().run_line_magic('load_ext', 'autoreload')
-
-
-# In[2]:
-
-
-#import autoreload
-#?autoreload
-get_ipython().run_line_magic('reload_ext', 'autoreload')
-get_ipython().run_line_magic('autoreload', '2')
-
-
-# In[ ]:
-
-
-
-
-
 # In[3]:
 
 
@@ -147,6 +126,7 @@ class QLearningAgent(ReinforcementAgent):
         "*** YOUR CODE HERE ***"
         #self.Q = {}
         self.Q = Counter()
+        self.q_size_history = np.ndarray(self.numTraining//10)
 
     def getQValue(self, state, action):
         """
@@ -197,13 +177,12 @@ class QLearningAgent(ReinforcementAgent):
           take the best policy action otherwise.  Note that if there are
           no legal actions, which is the case at the terminal state, you
           should choose None as the action.
-
-          HINT: You might want to use util.flipCoin(prob)
-          HINT: To pick randomly from a list, use random.choice(list)
         """
         # Pick Action
         legalActions = self.getLegalActions(state)
-        action = None
+        if not legalActions:
+            #action = None
+            return None
         "*** YOUR CODE HERE ***"
         # epsilon decay
         epsmin = 0.01
@@ -215,7 +194,7 @@ class QLearningAgent(ReinforcementAgent):
         else:
             # Act greedly
             action = self.computeActionFromQValues(state)
-        
+        print("habia una vez un bu!")
         return action
         
     def update(self, state, action, nextState, reward):
@@ -235,13 +214,32 @@ class QLearningAgent(ReinforcementAgent):
         # -----------------------------v revisar si calculo maximo Q
         estimation = reward + gamma*self.computeValueFromQValues(nextState)
         self.Q[(state, action)] += alpha*(estimation - self.Q[(state, action)])
-        #print("Q size:"+str(len(self.Q)), end="\r")
+        import pprint
+        pprint.pprint("lalala")
+        pprint.pprint("Q (table) size: "+str(len(self.Q)))#, end="\r")
 
     def getPolicy(self, state):
         return self.computeActionFromQValues(state)
 
     def getValue(self, state):
         return self.computeValueFromQValues(state)
+    
+    def final(self, state):
+        "Called at the end of each game."
+        # call the super-class final method
+        
+        print("Q size "+str(len(self.Q)), end="\r")
+        q_size_history[self.episodesSoFar-1] = len(self.Q)
+        
+        PacmanQAgent.final(self, state)
+        
+        
+        # did we finish training?
+        if self.episodesSoFar == self.numTraining:
+            # you might want to print your weights here for debugging
+            "*** YOUR CODE HERE ***"
+
+            pass
 
 
 # In[7]:
@@ -276,7 +274,10 @@ class PacmanQAgent(QLearningAgent):
         """
         action = QLearningAgent.getAction(self,state)
         self.doAction(state,action)
+        #print("Q (table) size: "+str(len(self.Q)), end="\r")
         return action
+    
+    
 
 
 # ## Linear Aproximation for Q learning

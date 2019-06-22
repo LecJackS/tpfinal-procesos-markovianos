@@ -180,6 +180,8 @@ class ReinforcementAgent(ValueEstimationAgent):
         self.epsilon = float(epsilon)
         self.alpha = float(alpha)
         self.discount = float(gamma)
+        import numpy as np
+        self.q_size_history = np.ndarray((self.numTraining//10+1, 2))
 
     ################################
     # Controls needed for Crawler  #
@@ -200,6 +202,10 @@ class ReinforcementAgent(ValueEstimationAgent):
         """
         self.lastState = state
         self.lastAction = action
+        #Check if it's a Q learning agent. Print Q table size:
+        if self.Q:
+            print("Q size "+str(len(self.Q)), end="\r")
+        
 
     ###################
     # Pacman Specific #
@@ -219,10 +225,24 @@ class ReinforcementAgent(ValueEstimationAgent):
         if self.episodesSoFar == 0:
             print('Beginning %d episodes of Training' % (self.numTraining))
 
+    def plotQSizes(self):
+        import matplotlib.pyplot as plt
+        import numpy as np
+        plt.plot(self.q_size_history[:-1,0], self.q_size_history[:-1,1])
+        plt.show()
+        print("Final Q size (table): %d different states saved\n" % np.amax(self.q_size_history))
+
     def final(self, state):
         """
           Called by Pacman game at the terminal state
         """
+        # Check if it's a Q learning agent.
+        # Save Q table size to plot later
+        if self.Q and (self.episodesSoFar-1)%10 == 0:
+            idx = (self.episodesSoFar-1)//10
+            self.q_size_history[idx,:] = [idx*10, len(self.Q)]
+            
+
         deltaReward = state.getScore() - self.lastState.getScore()
         self.observeTransition(self.lastState, self.lastAction, state, deltaReward)
         self.stopEpisode()
@@ -234,7 +254,7 @@ class ReinforcementAgent(ValueEstimationAgent):
             self.lastWindowAccumRewards = 0.0
         self.lastWindowAccumRewards += state.getScore()
 
-        NUM_EPS_UPDATE = 100
+        NUM_EPS_UPDATE = 50
         if self.episodesSoFar % NUM_EPS_UPDATE == 0:
             print('Reinforcement Learning Status:')
             windowAvg = self.lastWindowAccumRewards / float(NUM_EPS_UPDATE)
@@ -257,3 +277,5 @@ class ReinforcementAgent(ValueEstimationAgent):
         if self.episodesSoFar == self.numTraining:
             msg = 'Training Done (turning off epsilon and alpha)'
             print('%s\n%s' % (msg,'-' * len(msg)))
+            print("Plotting Q size over episodes:")
+            self.plotQSizes()
