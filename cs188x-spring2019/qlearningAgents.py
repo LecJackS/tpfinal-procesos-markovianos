@@ -6,13 +6,13 @@
 # * Fijate si podes imprimir el espacio de Q a medida que avanza en el training
 # 
 
-# In[45]:
+# In[1]:
 
 
 get_ipython().run_line_magic('load_ext', 'autoreload')
 
 
-# In[46]:
+# In[2]:
 
 
 #import autoreload
@@ -27,7 +27,7 @@ get_ipython().run_line_magic('autoreload', '2')
 
 
 
-# In[47]:
+# In[3]:
 
 
 # qlearningAgents.py
@@ -54,7 +54,7 @@ import numpy as np
 import pprint
 
 
-# In[48]:
+# In[4]:
 
 
 def random_argmax(v):
@@ -64,7 +64,7 @@ def random_argmax(v):
     return np.random.choice(arguments)
 
 
-# In[64]:
+# In[5]:
 
 
 # From layout of chars to layout of numbers
@@ -117,7 +117,7 @@ def ascii_state_to_numeric_state(ascii_state):
 # 
 # Q(s,a) is a dictionary with each state-action value it visits  
 
-# In[50]:
+# In[6]:
 
 
 class QLearningAgent(ReinforcementAgent):
@@ -244,7 +244,7 @@ class QLearningAgent(ReinforcementAgent):
         return self.computeValueFromQValues(state)
 
 
-# In[51]:
+# In[7]:
 
 
 class PacmanQAgent(QLearningAgent):
@@ -318,7 +318,7 @@ class PacmanQAgent(QLearningAgent):
 # $w_i \leftarrow w_i + \alpha \cdot advantage \cdot f_i(S,A)$
 # 
 
-# In[52]:
+# In[8]:
 
 
 class ApproximateQAgent(PacmanQAgent):
@@ -422,7 +422,7 @@ class ApproximateQAgent(PacmanQAgent):
 # 
 # For millones of features it becomes unwieldy
 
-# In[53]:
+# In[9]:
 
 
 # TODO: 
@@ -457,7 +457,7 @@ class LSTDAgent(PacmanQAgent):
 # 2. Voy a necesitar los gradientes para pesar la Advantage Function
 # 3. Voy a necesitar actualizar los pesos de mi red neuronal <- tal vez lo pueda definir en la red
 
-# In[54]:
+# In[10]:
 
 
 import torch
@@ -504,7 +504,7 @@ net = Net()
 print(net)
 
 
-# In[63]:
+# In[13]:
 
 
 class NNQAgent(PacmanQAgent):
@@ -522,7 +522,7 @@ class NNQAgent(PacmanQAgent):
         #self.weights = util.Counter()
         self.net = self.initNN()
         # to float; test with double later
-        self.net = self.net.float() 
+        #self.net = self.net.float() 
         
     def initNN(self):
         net = Net()
@@ -536,7 +536,14 @@ class NNQAgent(PacmanQAgent):
 
     def getWeights(self):
         return self.weights
-
+    
+#     def random_argmax(self, tens):
+#         """Like np.argmax(), but if there are several "best" actions,
+#            chooses and returns one randomly.
+#            Works with tensors"""
+#         arguments = np.argwhere(tens == torch.max(tens)[0]).ravel()
+#         return np.random.choice(arguments)
+    
     def getQValue(self, state, action):
         """
           Should return Q(state,action) = w * featureVector
@@ -547,12 +554,18 @@ class NNQAgent(PacmanQAgent):
 #         for feat in featureDict.keys():
 #             self.weights[feat]*featureDict[feat]
         #print("aprox Q value: ", np.dot(self.weights, featureDict))
-        #return np.dot(self.weights, featureDict)       
+        #return np.dot(self.weights, featureDict)
+        #numer_state = state.deepCopy()
         numer_state = ascii_state_to_numeric_state(state)
-        actions = {'North':1./6,'South':2./6,'East':3./6,'West':4./6,'Stop':5./6}
+        actions = {'North': [1./6],
+                   'South': [2./6],
+                   'East' : [3./6],
+                   'West' : [4./6],
+                   'Stop' : [5./6]}
         numer_action = actions[action]
-        input = torch.from_numpy(np.array([numer_state, numer_action]))
-        return self.net(input)
+        input_data = torch.Tensor(np.concatenate((numer_state, numer_action)))#.type(torch.DoubleTensor)
+        #print("data",input_data, type(input_data))
+        return sum(self.net(input_data))
     
     def computeActionFromNN(self, state):
         """
@@ -567,6 +580,7 @@ class NNQAgent(PacmanQAgent):
         else:
             # TODO: Find a better way
             #action=legalActions[random_argmax([self.getQValue(state, a) for a in legalActions])]
+            #numer_state = state.deepCopy()
             numer_state = ascii_state_to_numeric_state(state)
             actions = {'North':[1./6],
                        'South':[2./6],
@@ -575,13 +589,25 @@ class NNQAgent(PacmanQAgent):
                        'Stop' :[5./6]}
             #print(numer_state)
             #print(actions['East'])
-            input_data = np.concatenate((numer_state, actions['East']))
-            something = torch.from_numpy(input_data.astype(dtype=np.double))
+            #input_data = np.concatenate((numer_state, actions['East']))
+            #something = torch.from_numpy(input_data.astype(dtype=np.double))
             
             #all_q_s_values = [self.net(torch.from_numpy(np.concatenate((numer_state, actions[a])))) for a in legalActions]
-            all_q_s_values = [self.net(torch.from_numpy(np.concatenate((numer_state, actions[a])).astype(dtype=np.double)).double()) for a in legalActions]
+            #all_q_s_values = [self.net(torch.from_numpy(np.concatenate((numer_state, actions[a]))).type(torch.DoubleTensor)) for a in legalActions]
+            input_data = torch.Tensor(np.concatenate((numer_state, actions['East'])))
+            #print("input:")
+            #print(input_data)
+            #print("net:")
+            #print(self.net(input_data))
+            all_q_s_values = np.ndarray(len(legalActions))
+            for i, a in enumerate(legalActions):
+                input_data = torch.Tensor(np.concatenate((numer_state, actions[a])))
+                output = self.net(input_data)
+                all_q_s_values[i] = sum(output)
+            #all_q_s_values = [sum(self.net(torch.Tensor(np.concatenate((numer_state, actions[a]))))) for a in legalActions]
             best_action = random_argmax(all_q_s_values)
-            action=legalActions[best_action]
+            action = legalActions[best_action]
+            #print("action returned", str(action), type(str(action)))
         return action
 
     def getAction(self, state):
@@ -603,13 +629,17 @@ class NNQAgent(PacmanQAgent):
         epsmin = 0.01
         eps_decay = 0.9999
         self.epsilon = max(self.epsilon*eps_decay, epsmin)
+        #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< check
+        self.epsilon=0.1
         if util.flipCoin(self.epsilon):
             # Act randomly
             action = random.choice(legalActions)
         else:
             # Act greedly
+            #action = self.computeActionFromNN(state)
             action = self.computeActionFromNN(state)
-        
+        #print("segunda que devuelve action:", action, type(action))
+        self.doAction(state, action)
         return action
     
     def getMaxQValue(self, state):
@@ -627,6 +657,7 @@ class NNQAgent(PacmanQAgent):
         else:
             # TODO: Find a better way
             value=max([self.getQValue(state, a) for a in legalActions])
+        #print("getMaxQValue!=!=!?!?!?", value)
         return value
     
     def update(self, state, action, nextState, reward):
@@ -635,7 +666,7 @@ class NNQAgent(PacmanQAgent):
         """
         "*** YOUR CODE HERE ***"
         iteration = self.episodesSoFar
-        self.alpha = 1/np.power((iteration+1), 1) # alpha decay
+        self.alpha = 1/(100*np.power((iteration+1), 1)) # alpha decay
         alpha = self.alpha
         gamma = self.discount
         #state = str(state)
@@ -645,15 +676,24 @@ class NNQAgent(PacmanQAgent):
         #pastVal = self.getQValue(state, action)
         pastVal = self.getQValue(state, action)
         advantage = reward + gamma*self.getMaxQValue(nextState) - pastVal
+        neg_pastVal = -pastVal
+        neg_pastVal.backward()#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         #for feature in featureDict.keys():
-        for name, param in net.named_parameters():
+        for name, param in self.net.named_parameters():
             #print("state: ", state, " action: ", action)
             #self.weights[feature] += alpha * advantage * featureDict[feature]
-            param += alpha * advantage * param
+            #print("name:",name)
+            #print("param: ", param)
+            with torch.no_grad():
+                #print("alpha * advantage * param: ", alpha * advantage * param)
+                param = param + alpha * advantage * param
+        self.net.zero_grad()
 
     def final(self, state):
         "Called at the end of each game."
         # call the super-class final method
+        #print("state:",state)
+        #print("getScore:",state.getScore())
         PacmanQAgent.final(self, state)
 
         # did we finish training?
@@ -672,7 +712,7 @@ class NNQAgent(PacmanQAgent):
             pass
 
 
-# In[36]:
+# In[12]:
 
 
 # from subprocess import call
