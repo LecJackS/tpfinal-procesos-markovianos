@@ -457,7 +457,7 @@ class LSTDAgent(PacmanQAgent):
 # 2. Voy a necesitar los gradientes para pesar la Advantage Function
 # 3. Voy a necesitar actualizar los pesos de mi red neuronal <- tal vez lo pueda definir en la red
 
-# In[10]:
+# In[1]:
 
 
 import torch
@@ -478,7 +478,7 @@ class Net(nn.Module):
         # input: 147 chars from state and 1 from action taken
         self.fc1 = nn.Linear(148, 100)  # 
         self.fc2 = nn.Linear(100, 100)
-        self.fc3 = nn.Linear(100, 10)
+        self.fc3 = nn.Linear(100, 1)
 
 
     def forward(self, x):
@@ -504,7 +504,7 @@ net = Net()
 print(net)
 
 
-# In[13]:
+# In[2]:
 
 
 class NNQAgent(PacmanQAgent):
@@ -521,11 +521,23 @@ class NNQAgent(PacmanQAgent):
         PacmanQAgent.__init__(self, **args)
         #self.weights = util.Counter()
         self.net = self.initNN()
+        #self.net = self.net.to('cuda:0')
         # to float; test with double later
         #self.net = self.net.float() 
         
     def initNN(self):
         net = Net()
+#         torch.nn.init.xavier_uniform(net.fc1.weight.data)
+#         torch.nn.init.xavier_uniform(net.fc2.weight.data)
+#         torch.nn.init.xavier_uniform(net.fc3.weight.data)
+        torch.nn.init.uniform_(net.fc1.weight.data)
+        torch.nn.init.uniform_(net.fc2.weight.data)
+        torch.nn.init.uniform_(net.fc3.weight.data)
+        torch.nn.init.uniform_(net.fc1.bias.data)
+        torch.nn.init.uniform_(net.fc2.bias.data)
+        torch.nn.init.uniform_(net.fc3.bias.data)
+        #torch.nn.init.xavier_uniform(net.weight)
+        #net.bias.data.fill_(0.01)
         # Create random Tensors for weights.
         # Setting requires_grad=True indicates that we want to compute gradients with
         # respect to these Tensors during the backward pass.
@@ -534,9 +546,6 @@ class NNQAgent(PacmanQAgent):
 #         self.w3 = torch.randn(H2, D_out, device=device, dtype=dtype, requires_grad=True)
         return net
 
-    def getWeights(self):
-        return self.weights
-    
 #     def random_argmax(self, tens):
 #         """Like np.argmax(), but if there are several "best" actions,
 #            chooses and returns one randomly.
@@ -565,8 +574,8 @@ class NNQAgent(PacmanQAgent):
         numer_action = actions[action]
         input_data = torch.Tensor(np.concatenate((numer_state, numer_action)))#.type(torch.DoubleTensor)
         #print("data",input_data, type(input_data))
-        return sum(self.net(input_data))
-    
+        return self.net(input_data)
+
     def computeActionFromNN(self, state):
         """
           Compute the best action to take in a state.  Note that if there
@@ -603,8 +612,9 @@ class NNQAgent(PacmanQAgent):
             for i, a in enumerate(legalActions):
                 input_data = torch.Tensor(np.concatenate((numer_state, actions[a])))
                 output = self.net(input_data)
-                all_q_s_values[i] = sum(output)
+                all_q_s_values[i] = output
             #all_q_s_values = [sum(self.net(torch.Tensor(np.concatenate((numer_state, actions[a]))))) for a in legalActions]
+            print("all_q_s_values",all_q_s_values)
             best_action = random_argmax(all_q_s_values)
             action = legalActions[best_action]
             #print("action returned", str(action), type(str(action)))
@@ -612,18 +622,16 @@ class NNQAgent(PacmanQAgent):
 
     def getAction(self, state):
         """
-          Compute the action to take in the current state.  With
-          probability self.epsilon, we should take a random action and
-          take the best policy action otherwise.  Note that if there are
-          no legal actions, which is the case at the terminal state, you
+          eps-greedy policy.
+          Note that if there are no legal actions,
+          which is the case at the terminal state, you
           should choose None as the action.
-
-          HINT: You might want to use util.flipCoin(prob)
-          HINT: To pick randomly from a list, use random.choice(list)
         """
         # Pick Action
         legalActions = self.getLegalActions(state)
-        action = None
+        if not legalActions:
+            return None
+        #action = None
         "*** YOUR CODE HERE ***"
         # epsilon decay
         epsmin = 0.01
@@ -642,7 +650,7 @@ class NNQAgent(PacmanQAgent):
         self.doAction(state, action)
         return action
     
-    def getMaxQValue(self, state):
+    def getPolQValue(self, state):
         """
           Returns max_action Q(state,action)
           where the max is over legal actions.  Note that if
@@ -656,8 +664,9 @@ class NNQAgent(PacmanQAgent):
             value=0.0
         else:
             # TODO: Find a better way
-            value=max([self.getQValue(state, a) for a in legalActions])
-        #print("getMaxQValue!=!=!?!?!?", value)
+            policy_action = self.getAction(state)
+            value = self.getQValue(state, policy_action)
+            #value=max([self.getQValue(state, a) for a in legalActions])
         return value
     
     def update(self, state, action, nextState, reward):
@@ -666,28 +675,37 @@ class NNQAgent(PacmanQAgent):
         """
         "*** YOUR CODE HERE ***"
         iteration = self.episodesSoFar
-        self.alpha = 1/(100*np.power((iteration+1), 1)) # alpha decay
+        self.alpha = 0.001# 1/(1000*(iteration+1)) # alpha decay
         alpha = self.alpha
-        gamma = self.discount
+        gamma = 0.9#self.discount
         #state = str(state)
         #featureDict = self.featExtractor.getFeatures(state, action)
         #for key,feat in 
         
         #pastVal = self.getQValue(state, action)
         pastVal = self.getQValue(state, action)
-        advantage = reward + gamma*self.getMaxQValue(nextState) - pastVal
-        neg_pastVal = -pastVal
-        neg_pastVal.backward()#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        with torch.no_grad():
+            advantage = reward + gamma*self.getPolQValue(nextState) - pastVal
+            #print(advantage)
+        to_maximize = pastVal
+        to_maximize.backward()#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         #for feature in featureDict.keys():
-        for name, param in self.net.named_parameters():
-            #print("state: ", state, " action: ", action)
-            #self.weights[feature] += alpha * advantage * featureDict[feature]
-            #print("name:",name)
-            #print("param: ", param)
-            with torch.no_grad():
-                #print("alpha * advantage * param: ", alpha * advantage * param)
-                param = param + alpha * advantage * param
-        self.net.zero_grad()
+#         for name, param in self.net.named_parameters():
+#             #print("state: ", state, " action: ", action)
+#             #self.weights[feature] += alpha * advantage * featureDict[feature]
+#             #print("name:",name)
+#             #print("param: ", param)
+#             with torch.no_grad():
+#                 #print("alpha * advantage * param: ", alpha * advantage * param)
+#                 param.data = param.data + alpha * advantage * param.data
+        with torch.no_grad():
+            self.net.fc1.weight.data += alpha * advantage * self.net.fc1.weight.grad
+            self.net.fc2.weight.data += alpha * advantage * self.net.fc2.weight.grad
+            self.net.fc3.weight.data += alpha * advantage * self.net.fc3.weight.grad
+            self.net.fc1.bias.data += alpha * advantage * self.net.fc1.bias.grad
+            self.net.fc2.bias.data += alpha * advantage * self.net.fc2.bias.grad
+            self.net.fc3.bias.data += alpha * advantage * self.net.fc3.bias.grad
+            self.net.zero_grad()
 
     def final(self, state):
         "Called at the end of each game."
