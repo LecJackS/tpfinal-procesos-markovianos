@@ -3,7 +3,7 @@
 
 # # TODO
 # 
-# * Fijate si podes imprimir el espacio de Q a medida que avanza en el training
+# * DONE :) Fijate si podes imprimir el espacio de Q a medida que avanza en el training
 # 
 
 # In[3]:
@@ -223,23 +223,6 @@ class QLearningAgent(ReinforcementAgent):
 
     def getValue(self, state):
         return self.computeValueFromQValues(state)
-    
-    def final(self, state):
-        "Called at the end of each game."
-        # call the super-class final method
-        
-        print("Q size "+str(len(self.Q)), end="\r")
-        q_size_history[self.episodesSoFar-1] = len(self.Q)
-        
-        PacmanQAgent.final(self, state)
-        
-        
-        # did we finish training?
-        if self.episodesSoFar == self.numTraining:
-            # you might want to print your weights here for debugging
-            "*** YOUR CODE HERE ***"
-
-            pass
 
 
 # In[7]:
@@ -526,6 +509,7 @@ class NNQAgent(PacmanQAgent):
         # to float; test with double later
         #self.net = self.net.float() 
         
+        
     def initNN(self):
         net = Net()
 #         torch.nn.init.xavier_uniform(net.fc1.weight.data)
@@ -554,7 +538,8 @@ class NNQAgent(PacmanQAgent):
 #         arguments = np.argwhere(tens == torch.max(tens)[0]).ravel()
 #         return np.random.choice(arguments)
     
-    def getQValue(self, state, action):
+    
+    def getQValue(self, state, action, compute_grad=False):
         """
           Should return Q(state,action) = w * featureVector
           where * is the dotProduct operator
@@ -575,8 +560,17 @@ class NNQAgent(PacmanQAgent):
         numer_action = actions[action]
         input_data = torch.Tensor(np.concatenate((numer_state, numer_action)))#.type(torch.DoubleTensor)
         #print("data",input_data, type(input_data))
-        return self.net(input_data)
+        if not compute_grad:
+            # Do not compute grad
+            with torch.no_grad():
+                out_q = self.net(input_data)
+        else:
+            # Leave trace for calculate grad later
+            out_q = self.net(input_data)
+        
+        return out_q
 
+    
     def computeActionFromNN(self, state):
         """
           Compute the best action to take in a state.  Note that if there
@@ -616,12 +610,13 @@ class NNQAgent(PacmanQAgent):
                     output = self.net(input_data)
                 all_q_s_values[i] = output
             #all_q_s_values = [sum(self.net(torch.Tensor(np.concatenate((numer_state, actions[a]))))) for a in legalActions]
-            print("all_q_s_values",all_q_s_values)
+            print("all_q_s_values", all_q_s_values)
             best_action = random_argmax(all_q_s_values)
             action = legalActions[best_action]
             #print("action returned", str(action), type(str(action)))
         return action
 
+    
     def getAction(self, state):
         """
           eps-greedy policy.
@@ -650,8 +645,12 @@ class NNQAgent(PacmanQAgent):
             #action = self.computeActionFromNN(state)
             action = self.computeActionFromNN(state)
         #print("segunda que devuelve action:", action, type(action))
+        # Leave trace for calculating grad on update
+        #_ = self.getQValue(state, action, compute_grad=True)
         self.doAction(state, action)
+        
         return action
+    
     
     def getPolQValue(self, state):
         """
@@ -672,13 +671,14 @@ class NNQAgent(PacmanQAgent):
             #value=max([self.getQValue(state, a) for a in legalActions])
         return value
     
+    
     def update(self, state, action, nextState, reward):
         """
            Should update your weights based on transition
         """
         "*** YOUR CODE HERE ***"
         iteration = self.episodesSoFar
-        self.alpha = 0.0001# 1/(1000*(iteration+1)) # alpha decay
+        self.alpha = 0.000001# 1/(1000*(iteration+1)) # alpha decay
         alpha = self.alpha
         gamma = 0.9#self.discount
         #state = str(state)
@@ -686,13 +686,13 @@ class NNQAgent(PacmanQAgent):
         #for key,feat in 
         
         #pastVal = self.getQValue(state, action)
-        pastVal = self.getQValue(state, action)
-        with torch.no_grad():
-            advantage = reward + gamma*self.getPolQValue(nextState) - pastVal
+        pastVal = self.getQValue(state, action, compute_grad=True)
+        #with torch.no_grad():
+        advantage = reward + gamma*self.getPolQValue(nextState) - pastVal
             #print(advantage)
-        to_maximize = -pastVal
+        #to_maximize = pastVal
         
-        to_maximize.backward()#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        pastVal.backward(-advantage)#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         #for feature in featureDict.keys():
 #         for name, param in self.net.named_parameters():
 #             #print("state: ", state, " action: ", action)
@@ -705,14 +705,19 @@ class NNQAgent(PacmanQAgent):
         with torch.no_grad():
             print("Layer 1:")
             print(self.net.fc1.weight.data)
-            self.net.fc1.weight.data += alpha * advantage * self.net.fc1.weight.grad
+            print("update:")
             print(alpha * advantage * self.net.fc1.weight.grad)
+            
+            self.net.fc1.weight.data += alpha * advantage * self.net.fc1.weight.grad
+            print("Layer 1 - Updated")
             print(self.net.fc1.weight.data)
+            
             self.net.fc2.weight.data += alpha * advantage * self.net.fc2.weight.grad
             self.net.fc3.weight.data += alpha * advantage * self.net.fc3.weight.grad
             self.net.fc1.bias.data   += alpha * advantage * self.net.fc1.bias.grad
             self.net.fc2.bias.data   += alpha * advantage * self.net.fc2.bias.grad
             self.net.fc3.bias.data   += alpha * advantage * self.net.fc3.bias.grad
+            
             #self.net.zero_grad()
 #             self.net.fc1.weight.grad.zero_()
 #             self.net.fc2.weight.grad.zero_()
