@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
 # pacmanAgents.py
 # ---------------
 # Licensing Information:  You are free to use or extend these projects for
@@ -12,7 +18,7 @@
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
 import import_ipynb
-from pacman import Directions
+
 from game import Agent
 import random
 import game
@@ -23,6 +29,7 @@ class LeftTurnAgent(game.Agent):
     "An agent that turns left at every opportunity"
 
     def getAction(self, state):
+        from pacman import Directions #to avoid circular dependency
         legal = state.getLegalPacmanActions()
         current = state.getPacmanState().configuration.direction
         if current == Directions.STOP:
@@ -45,6 +52,7 @@ class GreedyAgent(Agent):
         assert self.evaluationFunction != None
 
     def getAction(self, state):
+        from pacman import Directions #to avoid circular dependency
         # Generate candidate actions
         legal = state.getLegalPacmanActions()
         if Directions.STOP in legal:
@@ -61,3 +69,4 @@ class GreedyAgent(Agent):
 
 def scoreEvaluation(state):
     return state.getScore()
+

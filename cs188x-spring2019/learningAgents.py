@@ -13,8 +13,7 @@
 
 
 from game import Directions, Agent, Actions
-
-import random,util,time
+import random, util, time
 
 class ValueEstimationAgent(Agent):
     """
@@ -102,7 +101,7 @@ class ReinforcementAgent(ValueEstimationAgent):
     #    Override These Functions      #
     ####################################
 
-    def update(self, state, action, nextState, reward):
+    def update(self, state, action, nextState, reward, terminal_state):
         """
                 This class will call this function, which you write, after
                 observing a transition and reward
@@ -121,7 +120,7 @@ class ReinforcementAgent(ValueEstimationAgent):
         """
         return self.actionFn(state)
 
-    def observeTransition(self, state,action,nextState,deltaReward):
+    def observeTransition(self, state, action, nextState, deltaReward, terminal_state=False):
         """
             Called by environment to inform agent that a transition has
             been observed. This will result in a call to self.update
@@ -130,7 +129,7 @@ class ReinforcementAgent(ValueEstimationAgent):
             NOTE: Do *not* override or call this function
         """
         self.episodeRewards += deltaReward
-        self.update(state,action,nextState,deltaReward)
+        self.update(state, action, nextState, deltaReward, terminal_state)
 
     def startEpisode(self):
         """
@@ -182,6 +181,7 @@ class ReinforcementAgent(ValueEstimationAgent):
         self.discount = float(gamma)
         import numpy as np
         self.q_size_history = np.ndarray((self.numTraining//10+1, 2))
+        self.q_size_history.fill(0)
 
     ################################
     # Controls needed for Crawler  #
@@ -217,7 +217,7 @@ class ReinforcementAgent(ValueEstimationAgent):
         """
         if not self.lastState is None:
             reward = state.getScore() - self.lastState.getScore()
-            self.observeTransition(self.lastState, self.lastAction, state, reward)
+            self.observeTransition(self.lastState, self.lastAction, state, reward, terminal_state=False)
         return state
 
     def registerInitialState(self, state):
@@ -244,7 +244,7 @@ class ReinforcementAgent(ValueEstimationAgent):
             
 
         deltaReward = state.getScore() - self.lastState.getScore()
-        self.observeTransition(self.lastState, self.lastAction, state, deltaReward)
+        self.observeTransition(self.lastState, self.lastAction, state, deltaReward, terminal_state=True)
         self.stopEpisode()
 
         # Make sure we have this var
@@ -277,5 +277,7 @@ class ReinforcementAgent(ValueEstimationAgent):
         if self.episodesSoFar == self.numTraining:
             msg = 'Training Done (turning off epsilon and alpha)'
             print('%s\n%s' % (msg,'-' * len(msg)))
-            print("Plotting Q size over episodes:")
-            self.plotQSizes()
+            # Check if it's a Q learning agent.
+            if self.Q:
+                print("Plotting Q size over episodes:")
+                self.plotQSizes()

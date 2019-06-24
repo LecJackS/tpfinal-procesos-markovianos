@@ -507,7 +507,7 @@ if __name__ == '__main__':
             def getPolicy(self, state):
                 "NOTE: 'random' is a special policy value; don't use it in your code."
                 return 'random'
-            def update(self, state, action, nextState, reward):
+            def update(self, state, action, nextState, reward, terminal_state):
                 pass
         a = RandomAgent()
     elif opts.agent == 'asynchvalue':
