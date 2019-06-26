@@ -556,7 +556,7 @@ class Net(nn.Module):
         # input: 147 chars from state and 1 from action taken
         #self.fc1 = nn.Linear(148, 100)  # 
         #self.fc1 = nn.Linear(57, 100)  # 
-        self.fc1 = nn.Linear(607, 100)  #
+        self.fc1 = nn.Linear(56, 100)  #
         self.fc2 = nn.Linear(100, 100)
         self.fc3 = nn.Linear(100, 1)
 
@@ -614,9 +614,9 @@ class NNQAgent(PacmanQAgent):
         torch.nn.init.uniform_(net.fc1.weight.data, 0.0, 0.01)
         torch.nn.init.uniform_(net.fc2.weight.data, 0.0, 0.01)
         torch.nn.init.uniform_(net.fc3.weight.data, 0.0, 0.01)
-        torch.nn.init.uniform_(net.fc1.bias.data, 0.0, 0.01)
-        torch.nn.init.uniform_(net.fc2.bias.data, 0.0, 0.01)
-        torch.nn.init.uniform_(net.fc3.bias.data, 0.0, 0.01)
+        torch.nn.init.uniform_(net.fc1.bias.data,   0.0, 0.01)
+        torch.nn.init.uniform_(net.fc2.bias.data,   0.0, 0.01)
+        torch.nn.init.uniform_(net.fc3.bias.data,   0.0, 0.01)
         #torch.nn.init.xavier_uniform(net.weight)
         #net.bias.data.fill_(0.01)
         # Create random Tensors for weights.
@@ -634,12 +634,38 @@ class NNQAgent(PacmanQAgent):
 #         arguments = np.argwhere(tens == torch.max(tens)[0]).ravel()
 #         return np.random.choice(arguments)
     
+    # Lo que me conviene hacer aca es:
+    # 1. cuando cargo el mapa, extraigo sus estadisticas (puedo repetir esto a la mitad del juego)
+    # 2. creo diccionarios de int to ascii y ascii to int
+    # 3. lo unico que llamo desde cada update es es ascii_to_int[c] para cada caracter del mapa
+    # 4. trabajo directamente con ints o normalizo a algo entre 0 y 1 para que no explote
+    # From layout of chars to layout of numbers
+    # Beware: This will be painful to see
+    def ascii_to_numeric_state_RELOADED(self, ascii_state):
+        str_state = str(ascii_state)
+        score_pos = str(str_state).find("Score: ")
+        ascii_map = str(str_state)[:score_pos-1]
+        if not hasattr(self, "sorted_vocab"):
+            # first step of all training
+            self.sorted_vocab = ['%','.',' ','\n','o','G','<','>','^','v']
+            self.int_to_ascii = {k: w for k, w in enumerate(self.sorted_vocab)}
+            self.ascii_to_int = {w: k for k, w in self.int_to_ascii.items()}
+        #print(str_state)
+        numer_map = [self.ascii_to_int[c] for c in ascii_map]
+
+        #numer_map /= 15.0
+        #last array position will contain the score
+        #numer_map[-1] = float(str_state[score_pos+7:])/3000
+        return numer_map
+    
     
     def getQValue(self, state, action, compute_grad=False):
         """
         """
         #numer_state = ascii_state_to_numeric_state(state)
-        numer_state = ascii_state_to_one_hots_state(state)
+        #numer_state = ascii_state_to_one_hots_state(state)
+        numer_state = self.ascii_to_numeric_state_RELOADED(state)
+        
         actions = {'North': [1./6],
                    'South': [2./6],
                    'East' : [3./6],
@@ -674,8 +700,8 @@ class NNQAgent(PacmanQAgent):
         for i, a in enumerate(legalActions):
             all_q_s_values[i] = self.getQValue(state, a, compute_grad=False)
             
-        print(legalActions)
-        print("all_q_s_values", all_q_s_values)
+        #print(legalActions)
+        #print("all_q_s_values", all_q_s_values)
         
         best_action = random_argmax(all_q_s_values)
         action = legalActions[best_action]

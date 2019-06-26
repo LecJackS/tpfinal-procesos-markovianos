@@ -203,9 +203,10 @@ class ReinforcementAgent(ValueEstimationAgent):
         self.lastState = state
         self.lastAction = action
         #Check if it's a Q learning agent. Print Q table size:
-        if self.Q:
+
+        if hasattr(self, 'Q'):
             print("Q size "+str(len(self.Q)), end="\r")
-        
+
 
     ###################
     # Pacman Specific #
@@ -238,8 +239,8 @@ class ReinforcementAgent(ValueEstimationAgent):
         """
         # Check if it's a Q learning agent.
         # Save Q table size to plot later
-        if self.Q and (self.episodesSoFar-1)%10 == 0:
-            idx = (self.episodesSoFar-1)//10
+        if hasattr(self, "Q") and (self.episodesSoFar-1)%10 == 0:
+            idx = (self.episodesSoFar-1)//10 - 1
             self.q_size_history[idx,:] = [idx*10, len(self.Q)]
             
 
@@ -278,6 +279,6 @@ class ReinforcementAgent(ValueEstimationAgent):
             msg = 'Training Done (turning off epsilon and alpha)'
             print('%s\n%s' % (msg,'-' * len(msg)))
             # Check if it's a Q learning agent.
-            if self.Q:
+            if hasattr(self,"Q"):
                 print("Plotting Q size over episodes:")
                 self.plotQSizes()
