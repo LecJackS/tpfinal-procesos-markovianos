@@ -798,7 +798,7 @@ class NNQAgent(PacmanQAgent):
         criterion = nn.MSELoss()
         optimizer = optim.SGD(self.net.parameters(), lr=learning_rate)
         # in your training loop:
-        for t in range(1):
+        for t in range(128):
             optimizer.zero_grad()   # zero the gradient buffers
             #output = net(input)
             #print("action grad: ",action)
