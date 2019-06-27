@@ -534,7 +534,7 @@ class LSTDAgent(PacmanQAgent):
 # 2. Voy a necesitar los gradientes para pesar la Advantage Function
 # 3. Voy a necesitar actualizar los pesos de mi red neuronal <- tal vez lo pueda definir en la red
 
-# In[17]:
+# In[4]:
 
 
 import torch
@@ -550,26 +550,30 @@ class Net(nn.Module):
         super(Net, self).__init__()
         # 1 input image channel, 6 output channels, 3x3 square convolution
         # kernel
-        #self.conv1 = nn.Conv2d(1, 6, 3)
-        #self.conv2 = nn.Conv2d(6, 16, 3)
+        self.fc1 = nn.Conv2d(in_channels=1, out_channels=6, kernel_size=(2, 1))
+        self.fc2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=(2, 1))
         # an affine operation: y = Wx + b
         # input: 147 chars from state and 1 from action taken
         #self.fc1 = nn.Linear(148, 100)  # 
         #self.fc1 = nn.Linear(57, 100)  # 
-        self.fc1 = nn.Linear(56, 100)  #
-        self.fc2 = nn.Linear(100, 100)
-        self.fc3 = nn.Linear(100, 1)
+#         self.fc1 = nn.Linear(56, 100)  #
+#         self.fc2 = nn.Linear(100, 100)
+        self.fc3 = nn.Linear(480, 1)
 
 
     def forward(self, x):
         # Max pooling over a (2, 2) window
-        #x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
+        # print(x)
+        x_0 = F.relu(self.fc1(x))
+        x = F.max_pool2d(x_0, (1, 1))
         # If the size is a square you can only specify a single number
-        #x = F.max_pool2d(F.relu(self.conv2(x)), 2)
-        #x = x.view(-1, self.num_flat_features(x))
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = F.max_pool2d(F.relu(self.fc2(x)), 2)
+        x = x.view(-1, self.num_flat_features(x))
         x = nn.Hardtanh(min_val=-1000., max_val=1000.)(self.fc3(x))
+        
+#         x = F.relu(self.fc1(x))
+#         x = F.relu(self.fc2(x))
+#         x = nn.Hardtanh(min_val=-1000., max_val=1000.)(self.fc3(x))
         return x
 
     def num_flat_features(self, x):
@@ -580,8 +584,8 @@ class Net(nn.Module):
         return num_features
 
 
-#net = Net()
-#print(net)
+ej_net = Net()
+print(ej_net)
 
 
 # In[18]:
@@ -603,7 +607,8 @@ class NNQAgent(PacmanQAgent):
         self.net = self.initNN()
         #self.net = self.net.to('cuda:0')
         # to float; test with double later
-        #self.net = self.net.float() 
+        #self.net = self.net.float()
+        del self.Q
         
         
     def initNN(self):
@@ -611,12 +616,12 @@ class NNQAgent(PacmanQAgent):
 #         torch.nn.init.xavier_uniform(net.fc1.weight.data)
 #         torch.nn.init.xavier_uniform(net.fc2.weight.data)
 #         torch.nn.init.xavier_uniform(net.fc3.weight.data)
-        torch.nn.init.uniform_(net.fc1.weight.data, 0.0, 0.01)
-        torch.nn.init.uniform_(net.fc2.weight.data, 0.0, 0.01)
-        torch.nn.init.uniform_(net.fc3.weight.data, 0.0, 0.01)
-        torch.nn.init.uniform_(net.fc1.bias.data,   0.0, 0.01)
-        torch.nn.init.uniform_(net.fc2.bias.data,   0.0, 0.01)
-        torch.nn.init.uniform_(net.fc3.bias.data,   0.0, 0.01)
+        torch.nn.init.uniform_(net.fc1.weight.data, 0.0, 0.001)
+        torch.nn.init.uniform_(net.fc2.weight.data, 0.0, 0.001)
+        torch.nn.init.uniform_(net.fc3.weight.data, 0.0, 0.001)
+        torch.nn.init.uniform_(net.fc1.bias.data,   0.0, 0.001)
+        torch.nn.init.uniform_(net.fc2.bias.data,   0.0, 0.001)
+        torch.nn.init.uniform_(net.fc3.bias.data,   0.0, 0.001)
         #torch.nn.init.xavier_uniform(net.weight)
         #net.bias.data.fill_(0.01)
         # Create random Tensors for weights.
@@ -645,8 +650,10 @@ class NNQAgent(PacmanQAgent):
         str_state = str(ascii_state)
         score_pos = str(str_state).find("Score: ")
         ascii_map = str(str_state)[:score_pos-1]
+        
         if not hasattr(self, "sorted_vocab"):
             # first step of all training
+            #           walls are 0 :O
             self.sorted_vocab = ['%','.',' ','\n','o','G','<','>','^','v']
             self.int_to_ascii = {k: w for k, w in enumerate(self.sorted_vocab)}
             self.ascii_to_int = {w: k for k, w in self.int_to_ascii.items()}
@@ -666,23 +673,25 @@ class NNQAgent(PacmanQAgent):
         #numer_state = ascii_state_to_one_hots_state(state)
         numer_state = self.ascii_to_numeric_state_RELOADED(state)
         
-        actions = {'North': [1./6],
-                   'South': [2./6],
-                   'East' : [3./6],
-                   'West' : [4./6],
-                   'Stop' : [5./6]}
-        numer_action = actions[action]
-        input_data = torch.Tensor(np.concatenate((numer_state, numer_action)))#.type(torch.DoubleTensor)
+        actions = {'North': [1,0,0,0,0],
+                   'South': [0,1,0,0,0],
+                   'East' : [0,0,1,0,0],
+                   'West' : [0,0,0,1,0],
+                   'Stop' : [0,0,0,0,1]}
+        numer_action = actions[action] 
+        input_data = torch.Tensor(np.concatenate((numer_state, numer_action)))#.type(torch.cuda.DoubleTensor)
         #print("data",input_data, type(input_data))
         if not compute_grad:
             # Do not compute grad
             with torch.no_grad():
                 #print("not leaving trace. action: ", action)
-                out_q = self.net(input_data)
+                #out_q = self.net(input_data)
+                out_q = self.net(torch.Tensor(input_data.repeat(1, 4).view(-1, 60)).reshape((1, 1, 4, len(input_data))))
         else:
             # Leave trace for calculate grad later
             #print("leaving trace. action: ", action)
-            out_q = self.net(input_data)
+            #out_q = self.net(input_data)
+            out_q = self.net(torch.Tensor(input_data.repeat(1, 4).view(-1, 60)).reshape((1, 1, 4, len(input_data))))
         #print(out_q)
         return out_q
 
@@ -771,7 +780,7 @@ class NNQAgent(PacmanQAgent):
         """
         "*** YOUR CODE HERE ***"
         iteration = self.episodesSoFar
-        self.alpha = 0.0001# los rewards son de orden grande1/(1000*(iteration+1)) # alpha decay
+        self.alpha = max(0.0001, 1/(iteration+1))# los rewards son de orden grande1/(1000*(iteration+1)) # alpha decay
         alpha = self.alpha
         gamma = 0.9#self.discount
 
