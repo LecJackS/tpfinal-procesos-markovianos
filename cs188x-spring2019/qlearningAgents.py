@@ -550,7 +550,7 @@ class Net(nn.Module):
         super(Net, self).__init__()
         # 1 input image channel, 6 output channels, 3x3 square convolution
         # kernel
-        self.fc1 = nn.Conv2d(in_channels=1, out_channels=6, kernel_size=(2, 1))
+        self.fc1 = nn.Conv2d(in_channels=10, out_channels=6, kernel_size=(2, 1))
         self.fc2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=(2, 1))
         # an affine operation: y = Wx + b
         # input: 147 chars from state and 1 from action taken
@@ -591,7 +591,7 @@ print(ej_net)
 # In[18]:
 
 
-class NNQAgent(PacmanQAgent):
+class NNQAgentOneActionIn(PacmanQAgent):
     """
        ApproximateQLearningAgent
 
@@ -765,7 +765,7 @@ class NNQAgent(PacmanQAgent):
         if not legalActions:
             #print("No legal actions, returning 0")
             #value = 0.0
-            value = Variable(torch.zeros(1))
+            value = Variable(torch.zeros((1, 1)))
         else:
             # TODO: Find a better way
             policy_action = self.getAction(state)
@@ -793,16 +793,281 @@ class NNQAgent(PacmanQAgent):
 #             crit = nn.MSELoss()
         import torch.optim as optim
         # create your optimizer
-        learning_rate = 1e-7
+        learning_rate = 1e-8
         #optimizer = optim.SGD(net.parameters(), lr=0.01)
         criterion = nn.MSELoss()
         optimizer = optim.SGD(self.net.parameters(), lr=learning_rate)
         # in your training loop:
-        for t in range(128):
+        for t in range(1):
             optimizer.zero_grad()   # zero the gradient buffers
             #output = net(input)
             #print("action grad: ",action)
             output = self.getQValue(state, action, compute_grad=True)
+            if not terminal_state:
+                target = reward + gamma*self.getPolQValue(nextState)
+            else:
+                #print("terminal. reward: ", reward)
+                #target = torch.from_numpy(np.array(reward))
+                target = reward + gamma*self.getPolQValue(nextState)
+            #print(target.size())
+            #print(output.size())
+            loss = criterion(output, target)
+            loss.backward()
+            #print("loss:", t, loss.item())
+            optimizer.step()    # Does the update
+#         if not terminal_state:
+# #             loss = crit(pastVal, Variable(reward + gamma * self.getPolQValue(nextState)))
+# #             loss.backward()
+#             pastVal.backward(reward + gamma*self.getPolQValue(nextState) - pastVal)
+#             print(reward, action, gamma * self.getPolQValue(nextState), pastVal)
+#         else:
+#             # S' is terminal state, we don't want to use q_s'
+#             pastVal.backward(reward - pastVal)
+#             print(reward, action, pastVal)
+#         print()
+#        with torch.no_grad():
+#             #print("Layer 1:")
+#             #print(self.net.fc1.weight.data)
+#             #print("update:")
+#             #print(alpha * advantage * self.net.fc1.weight.grad)
+#                 self.net.fc1.weight.data += alpha * advantage * self.net.fc1.weight.grad
+#                 #print("Layer 1 - Updated")
+#                 #print(self.net.fc1.weight.data)
+#                 self.net.fc2.weight.data += alpha * advantage * self.net.fc2.weight.grad
+#                 self.net.fc3.weight.data += alpha * advantage * self.net.fc3.weight.grad
+#                 self.net.fc1.bias.data   += alpha * advantage * self.net.fc1.bias.grad
+#                 self.net.fc2.bias.data   += alpha * advantage * self.net.fc2.bias.grad
+#                 self.net.fc3.bias.data   += alpha * advantage * self.net.fc3.bias.grad
+#            self.net.zero_grad()
+
+
+    def final(self, state):
+        "Called at the end of each game."
+        # call the super-class final method
+        PacmanQAgent.final(self, state)
+        # did we finish training?
+        if self.episodesSoFar == self.numTraining:
+            # you might want to print your weights here for debugging
+            pass
+
+
+# In[ ]:
+
+
+class NNQAgentAllQActionsOut(PacmanQAgent):
+    """
+       ApproximateQLearningAgent
+
+       You should only have to overwrite getQValue
+       and update.  All other QLearningAgent functions
+       should work as is.
+    """
+    def __init__(self, extractor='IdentityExtractor', **args):
+        #extractor = 'CoordinateExtractor'
+        #self.featExtractor = util.lookup(extractor, globals())()
+        PacmanQAgent.__init__(self, **args)
+        #self.weights = util.Counter()
+        self.net = self.initNN()
+        #self.net = self.net.to('cuda:0')
+        # to float; test with double later
+        #self.net = self.net.float()
+        del self.Q
+        
+        
+    def initNN(self):
+        net = Net()
+#         torch.nn.init.xavier_uniform(net.fc1.weight.data)
+#         torch.nn.init.xavier_uniform(net.fc2.weight.data)
+#         torch.nn.init.xavier_uniform(net.fc3.weight.data)
+        torch.nn.init.uniform_(net.fc1.weight.data, 0.0, 0.001)
+        torch.nn.init.uniform_(net.fc2.weight.data, 0.0, 0.001)
+        torch.nn.init.uniform_(net.fc3.weight.data, 0.0, 0.001)
+        torch.nn.init.uniform_(net.fc1.bias.data,   0.0, 0.001)
+        torch.nn.init.uniform_(net.fc2.bias.data,   0.0, 0.001)
+        torch.nn.init.uniform_(net.fc3.bias.data,   0.0, 0.001)
+        #torch.nn.init.xavier_uniform(net.weight)
+        #net.bias.data.fill_(0.01)
+        # Create random Tensors for weights.
+        # Setting requires_grad=True indicates that we want to compute gradients with
+        # respect to these Tensors during the backward pass.
+#         self.w1 = torch.randn(D_in, H1, device=device, dtype=dtype, requires_grad=True)
+#         self.w2 = torch.randn(H1,   H2, device=device, dtype=dtype, requires_grad=True)
+#         self.w3 = torch.randn(H2, D_out, device=device, dtype=dtype, requires_grad=True)
+        return net
+
+#     def random_argmax(self, tens):
+#         """Like np.argmax(), but if there are several "best" actions,
+#            chooses and returns one randomly.
+#            Works with tensors"""
+#         arguments = np.argwhere(tens == torch.max(tens)[0]).ravel()
+#         return np.random.choice(arguments)
+    
+    # Lo que me conviene hacer aca es:
+    # 1. cuando cargo el mapa, extraigo sus estadisticas (puedo repetir esto a la mitad del juego)
+    # 2. creo diccionarios de int to ascii y ascii to int
+    # 3. lo unico que llamo desde cada update es es ascii_to_int[c] para cada caracter del mapa
+    # 4. trabajo directamente con ints o normalizo a algo entre 0 y 1 para que no explote
+    # From layout of chars to layout of numbers
+    # Beware: This will be painful to see
+    def ascii_to_numeric_state_RELOADED(self, ascii_state):
+        str_state = str(ascii_state)
+        score_pos = str(str_state).find("Score: ")
+        ascii_map = str(str_state)[:score_pos-1]
+        
+        if not hasattr(self, "sorted_vocab"):
+            # first step of all training
+            #           walls are 0 :O
+            self.sorted_vocab = ['%','.',' ','\n','o','G','<','>','^','v']
+            self.int_to_ascii = {k: w for k, w in enumerate(self.sorted_vocab)}
+            self.ascii_to_int = {w: k for k, w in self.int_to_ascii.items()}
+        #print(str_state)
+        numer_map = torch.Tensor([self.ascii_to_int[c] for c in ascii_map])
+        
+
+        #numer_map /= 15.0
+        #last array position will contain the score
+        #numer_map[-1] = float(str_state[score_pos+7:])/3000
+        return numer_map.view(-1, len(str_state)).reshape(1, len(self.sorted_vocab), len(str_state))
+    
+    
+    def getQValues(self, state, compute_grad=False):
+        """
+        """
+        #numer_state = ascii_state_to_numeric_state(state)
+        #numer_state = ascii_state_to_one_hots_state(state)
+        #numer_state = self.ascii_to_numeric_state_RELOADED(state)
+        input_data =  self.ascii_to_numeric_state_RELOADED(state)
+#         actions = {'North': [1,0,0,0,0],
+#                    'South': [0,1,0,0,0],
+#                    'East' : [0,0,1,0,0],
+#                    'West' : [0,0,0,1,0],
+#                    'Stop' : [0,0,0,0,1]}
+#         numer_action = actions[action] 
+#         input_data = torch.Tensor(np.concatenate((numer_state, numer_action)))#.type(torch.cuda.DoubleTensor)
+        #print("data",input_data, type(input_data))
+        if not compute_grad:
+            # Do not compute grad
+            with torch.no_grad():
+                #print("not leaving trace. action: ", action)
+                #out_q = self.net(input_data)
+                #out_q = self.net(torch.Tensor(input_data.repeat(1, 4).view(-1, 60)).reshape((1, 1, 4, len(input_data))))
+                out_q = self.net(input_data.reshape((1, 1, len(self.sorted_vocab), len(input_data))))
+        else:
+            # Leave trace for calculate grad later
+            #print("leaving trace. action: ", action)
+            #out_q = self.net(input_data)
+            out_q = self.net(torch.Tensor(input_data.repeat(1, 4).view(-1, 60)).reshape((1, 1, 4, len(input_data))))
+        #print(out_q)
+        return out_q
+
+    
+    def computeActionFromNN(self, state):
+        """
+          Compute the best action to take in a state.
+          Returns None if no legal actions
+        """
+        legalActions = self.getLegalActions(state)
+        if not legalActions:
+            return None
+
+#         all_q_s_values = np.ndarray(len(legalActions))
+#         for i, a in enumerate(legalActions):
+#             all_q_s_values[i] = self.getQValue(state, a, compute_grad=False)
+        all_q_s_values = self.getQValues(state, compute_grad=False)
+        #print(legalActions)
+        #print("all_q_s_values", all_q_s_values)
+        print(all_q_s_values)
+        best_action = random_argmax(all_q_s_values)
+        action = legalActions[best_action]
+        #print("action returned", str(action), type(str(action)))
+        return action
+
+    
+    def getAction(self, state):
+        """
+          eps-greedy policy.
+          Note that if there are no legal actions,
+          which is the case at the terminal state, you
+          should choose None as the action.
+        """
+        # Pick Action
+        legalActions = self.getLegalActions(state)
+        if not legalActions:
+            return None
+        #action = None
+        "*** YOUR CODE HERE ***"
+        # epsilon decay
+        epsmin = 0.01
+        eps_decay = 0.9999
+        #self.epsilon = max(self.epsilon*eps_decay, epsmin)
+        self.epsilon = 0.1
+        #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< check
+        self.epsilon=0.1
+        if util.flipCoin(self.epsilon):
+            # Act randomly
+            action = random.choice(legalActions)
+        else:
+            # Act greedly
+            #action = self.computeActionFromNN(state)
+            action = self.computeActionFromNN(state)
+        #print("segunda que devuelve action:", action, type(action))
+        # Leave trace for calculating grad on update
+        #_ = self.getQValue(state, action, compute_grad=True)
+        self.doAction(state, action)
+        return action
+    
+    
+    def getPolQValue(self, state):
+        """
+          Returns max_action Q(state,action)
+          where the max is over legal actions.  Note that if
+          there are no legal actions, which is the case at the
+          terminal state, you should return a value of 0.0.
+        """
+
+        # max_a(Q[state, all actions])
+        legalActions = self.getLegalActions(state)
+        if not legalActions:
+            #print("No legal actions, returning 0")
+            #value = 0.0
+            value = Variable(torch.zeros((1, 1)))
+        else:
+            # TODO: Find a better way
+            policy_action = self.getAction(state)
+            value = self.getQValue(state, policy_action)
+            #value=max([self.getQValue(state, a) for a in legalActions])
+        return value
+    
+    
+    def update(self, state, action, nextState, reward, terminal_state=False):
+        """
+           Should update your weights based on transition
+        """
+        "*** YOUR CODE HERE ***"
+        iteration = self.episodesSoFar
+        self.alpha = max(0.0001, 1/(iteration+1))# los rewards son de orden grande1/(1000*(iteration+1)) # alpha decay
+        alpha = self.alpha
+        gamma = 0.9#self.discount
+
+
+        #pastVal = self.getQValue(state, action, compute_grad=True)
+#         with torch.no_grad():
+#             advantage = reward + gamma*self.getPolQValue(nextState) - pastVal
+#         pastVal.backward(-advantage)#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#         with torch.no_grad():
+#             crit = nn.MSELoss()
+        import torch.optim as optim
+        # create your optimizer
+        learning_rate = 1e-8
+        #optimizer = optim.SGD(net.parameters(), lr=0.01)
+        criterion = nn.MSELoss()
+        optimizer = optim.SGD(self.net.parameters(), lr=learning_rate)
+        # in your training loop:
+        for t in range(1):
+            optimizer.zero_grad()   # zero the gradient buffers
+            #output = net(input)
+            #print("action grad: ",action)
+            #output = self.getQValues(state, compute_grad=True)
             if not terminal_state:
                 target = reward + gamma*self.getPolQValue(nextState)
             else:
