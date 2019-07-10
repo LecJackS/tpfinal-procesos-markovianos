@@ -180,7 +180,7 @@ class ReinforcementAgent(ValueEstimationAgent):
         self.alpha = float(alpha)
         self.discount = float(gamma)
         import numpy as np
-        self.q_size_history = np.ndarray((self.numTraining//10+1, 2))
+        self.q_size_history = np.ndarray((self.numTraining//10+1, 3))
         self.q_size_history.fill(0)
 
     ################################
@@ -203,7 +203,6 @@ class ReinforcementAgent(ValueEstimationAgent):
         self.lastState = state
         self.lastAction = action
         #Check if it's a Q learning agent. Print Q table size:
-
         if hasattr(self, 'Q'):
             print("Q size "+str(len(self.Q)), end="\r")
 
@@ -225,25 +224,37 @@ class ReinforcementAgent(ValueEstimationAgent):
         self.startEpisode()
         if self.episodesSoFar == 0:
             print('Beginning %d episodes of Training' % (self.numTraining))
+            # Verbose
+            NUM_EPS_UPDATE = 50
+            print('Episodes\tMean R lifetime / last %d ep\tTraining time' %NUM_EPS_UPDATE)
 
     def plotQSizes(self):
         import matplotlib.pyplot as plt
         import numpy as np
-        plt.plot(self.q_size_history[:-1,0], self.q_size_history[:-1,1])
+        plt.plot(self.q_size_history[:-2,0], self.q_size_history[:-2,1], label='Q table size')
+        plt.plot(self.q_size_history[:-2,0], self.q_size_history[:-2,2], label='Reward')
+        plt.xlabel("Episodes")
+        plt.ylabel("# of elements")
+        plt.legend()
         plt.show()
-        print("Final Q size (table): %d different states saved\n" % np.amax(self.q_size_history))
+        print("Final Q size (table): %d different states saved\n" % np.amax(self.q_size_history[:,1]))
 
     def final(self, state):
         """
           Called by Pacman game at the terminal state
         """
+        # Save Q table size and rewards to plot later
         # Check if it's a Q learning agent.
-        # Save Q table size to plot later
-        if hasattr(self, "Q") and (self.episodesSoFar-1)%10 == 0:
-            idx = (self.episodesSoFar-1)//10 - 1
-            self.q_size_history[idx,:] = [idx*10, len(self.Q)]
-            
-
+        SAVE_INTERVAL = 10
+        if hasattr(self, "Q"):
+            if not hasattr(self, "accum_score"):
+                self.accum_score = 0.0
+            self.accum_score += state.getScore()
+        if hasattr(self, "Q") and (self.episodesSoFar-1)%SAVE_INTERVAL == 0:
+            idx = (self.episodesSoFar-1)//SAVE_INTERVAL - 1
+            self.q_size_history[idx,:] = [idx*SAVE_INTERVAL, len(self.Q), self.accum_score/SAVE_INTERVAL]
+            self.accum_score = 0.0
+        #
         deltaReward = state.getScore() - self.lastState.getScore()
         self.observeTransition(self.lastState, self.lastAction, state, deltaReward, terminal_state=True)
         self.stopEpisode()
@@ -256,22 +267,19 @@ class ReinforcementAgent(ValueEstimationAgent):
         self.lastWindowAccumRewards += state.getScore()
 
         NUM_EPS_UPDATE = 50
+        # Print information after 50 episodes
         if self.episodesSoFar % NUM_EPS_UPDATE == 0:
-            print('Reinforcement Learning Status:')
             windowAvg = self.lastWindowAccumRewards / float(NUM_EPS_UPDATE)
             if self.episodesSoFar <= self.numTraining:
                 trainAvg = self.accumTrainRewards / float(self.episodesSoFar)
-                print('\tCompleted %d out of %d training episodes' % (
-                       self.episodesSoFar,self.numTraining))
-                print('\tAverage Rewards over all training: %.2f' % (
-                        trainAvg))
+                print('%4d/%4d' % (self.episodesSoFar,self.numTraining), end="")
+                print('\tr: %4.2f' % (trainAvg), end=" / ")
             else:
                 testAvg = float(self.accumTestRewards) / (self.episodesSoFar - self.numTraining)
-                print('\tCompleted %d test episodes' % (self.episodesSoFar - self.numTraining))
-                print('\tAverage Rewards over testing: %.2f' % testAvg)
-            print('\tAverage Rewards for last %d episodes: %.2f'  % (
-                    NUM_EPS_UPDATE,windowAvg))
-            print('\tEpisode took %.2f seconds' % (time.time() - self.episodeStartTime))
+                print('Completed %d test episodes' % (self.episodesSoFar - self.numTraining))
+                print('Average rewards: %4.2f' % testAvg, end=" / ")
+            print('%4.2f'  % windowAvg, end="")
+            print('\t%2.2f sec' % (time.time() - self.episodeStartTime))
             self.lastWindowAccumRewards = 0.0
             self.episodeStartTime = time.time()
 
